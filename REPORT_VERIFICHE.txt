@@ -1,0 +1,13 @@
+VERIFICHE REALI E LIMITI · best_320.onnx
+- Modello ONNX fisicamente presente: 7,170,600 bytes
+- SHA256: 3260b821449e1c9dd182cdf7dbe3a7b6247cd30150d0c475349215777a3e9f36
+- Classi in catalogo: 16
+- ONNX caricato realmente con OpenCV DNN: OK
+- Inferenza su tensor RGB 1×3×320×320: OK
+- Forma output reale: (1, 6300, 21)
+- Numeri finiti su secondo test: OK
+- Kotlin: controllo sintattico con kotlinc disponibile, riferimenti Android non compilabili senza Android SDK
+- Progetto completo con AndroidManifest, Gradle, workflow, Java/Kotlin: OK strutturale
+- Build APK / test su Android reale: NON ESEGUITI (Android SDK e download dipendenze non disponibili)
+- Coda multi-video / Android MediaCodec / ONNX Runtime Android: codice implementato, esecuzione sul dispositivo da validare
+- Accuratezza sulle classi in video originali: non misurata

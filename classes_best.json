@@ -1,0 +1,23 @@
+{
+  "nc": 16,
+  "names": [
+    "ad",
+    "airsweeper",
+    "bombtower",
+    "canon",
+    "clancastle",
+    "eagle",
+    "inferno",
+    "kingpad",
+    "mortar",
+    "queenpad",
+    "rcpad",
+    "scattershot",
+    "th13",
+    "wardenpad",
+    "wizztower",
+    "xbow"
+  ],
+  "source": "best.pt recuperato",
+  "format": "yolov5"
+}
