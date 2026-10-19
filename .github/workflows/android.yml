@@ -1,36 +1,98 @@
-name: Compila Osservatore da ZIP sul telefono
+name: Compila MyBotRun Osservatore Android (SDK preinstallato)
+
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  apk:
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Recupera repository
+        uses: actions/checkout@v4
+
+      - name: Prepara Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Android SDK e licenze
+
+      # Il runner Ubuntu ufficiale include gia' Android SDK e sdkmanager.
+      # NON utilizzare android-actions/setup-android@v3: era il punto di errore.
+      - name: Usa SDK Android del runner e verifica API 35
         shell: bash
         run: |
-          set +o pipefail
-          yes | sdkmanager --licenses > /dev/null 2>&1
-          set -o pipefail
-          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
-      - uses: gradle/actions/setup-gradle@v4
+          set -euo pipefail
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "SDK Android: $SDK"
+          MANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$MANAGER" || { echo 'ERRORE: sdkmanager non presente nel runner Ubuntu'; exit 1; }
+          "$MANAGER" --version
+          if [[ ! -f "$SDK/platforms/android-35/android.jar" || ! -d "$SDK/build-tools/35.0.0" ]]; then
+            echo 'Installazione API 35 / build-tools 35.0.0...'
+            set +o pipefail
+            yes | "$MANAGER" --sdk_root="$SDK" --licenses > /tmp/sdk_licenze.log 2>&1
+            set -o pipefail
+            "$MANAGER" --sdk_root="$SDK" --install 'platforms;android-35' 'build-tools;35.0.0'
+          fi
+          test -f "$SDK/platforms/android-35/android.jar" || { echo 'ERRORE: Android API 35 mancante'; exit 1; }
+          test -d "$SDK/build-tools/35.0.0" || { echo 'ERRORE: Android build-tools 35.0.0 mancanti'; exit 1; }
+          echo 'SDK Android API 35 pronto.'
+
+      - name: Prepara Gradle 8.10.2
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-      - name: Estrai progetto dal file ZIP
+
+      - name: Estrai progetto sorgente
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p codice
-          unzip -q MyBotRun_Osservatore_Android_v1_SORGENTE.zip -d codice
-      - name: Compila APK
-        working-directory: codice
-        run: gradle --no-daemon --stacktrace :app:assembleDebug
-      - uses: actions/upload-artifact@v4
+          if [[ -f 'MyBotRun_Osservatore_Android_v1_SORGENTE.zip' ]]; then
+            unzip -oq 'MyBotRun_Osservatore_Android_v1_SORGENTE.zip' -d codice
+          elif [[ -f 'app/build.gradle.kts' && -f 'settings.gradle.kts' ]]; then
+            cp -R app codice/
+            cp settings.gradle.kts build.gradle.kts gradle.properties codice/
+          else
+            echo 'ERRORE: carica lo ZIP sorgente nella radice del repository.'
+            exit 1
+          fi
+          test -f codice/app/build.gradle.kts || { echo 'ERRORE: progetto Android assente'; exit 1; }
+          test -f codice/app/src/main/assets/best_320.onnx || { echo 'ERRORE: modello YOLO mancante'; exit 1; }
+          echo 'Sorgenti e modello YOLO trovati.'
+
+      - name: Compila APK debug
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd codice
+          gradle --no-daemon --stacktrace :app:assembleDebug 2>&1 | tee ../compilazione.log
+
+      - name: Pubblica APK da installare
+        if: success()
+        uses: actions/upload-artifact@v4
         with:
-          name: MyBotRun-Osservatore-Android-APK
+          name: MyBotRun-Osservatore-APK
           path: codice/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Salva log in caso di errore
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Log-errore-compilazione
+          path: |
+            compilazione.log
+            /tmp/sdk_licenze.log
+          if-no-files-found: ignore
+          retention-days: 14
